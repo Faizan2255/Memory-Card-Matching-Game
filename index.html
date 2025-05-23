@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Memory Card Matching Game</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .memory-card {
+            perspective: 1000px;
+            transform-style: preserve-3d;
+            transition: transform 0.5s;
+        }
+        
+        .card-front, .card-back {
+            backface-visibility: hidden;
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            border-radius: 0.5rem;
+            transition: transform 0.5s;
+        }
+        
+        .card-front {
+            transform: rotateY(180deg);
+        }
+        
+        .memory-card.flipped {
+            transform: rotateY(180deg);
+        }
+        
+        .memory-card.matched .card-front {
+            background-color: #68D391 !important;
+            animation: pulse 1s;
+        }
+        
+        @keyframes pulse {
+            0% { transform: rotateY(180deg) scale(1); }
+            50% { transform: rotateY(180deg) scale(1.1); }
+            100% { transform: rotateY(180deg) scale(1); }
+        }
+        
+        @keyframes celebrate {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.2); }
+            100% { transform: scale(1); }
+        }
+        
+        .celebrate {
+            animation: celebrate 0.5s ease-in-out;
+        }
+        
+        body {
+            background-color: #1a202c;
+            background-image: 
+                radial-gradient(circle at 25% 25%, rgba(76, 29, 149, 0.3) 0%, transparent 50%),
+                radial-gradient(circle at 75% 75%, rgba(219, 39, 119, 0.3) 0%, transparent 50%);
+            min-height: 100vh;
+        }
+    </style>
+</head>
+<body class="text-white font-sans">
+    <div class="container mx-auto px-4 py-8">
+        <header class="text-center mb-8">
+            <h1 class="text-4xl font-bold mb-2 text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-pink-500 to-red-500">Memory Card Matching Game</h1>
+            <p class="text-gray-300 mb-6">Match all the pairs to win!</p>
+            
+            <div class="flex flex-wrap justify-center gap-4 mb-6">
+                <div class="bg-gray-800 px-6 py-3 rounded-lg shadow-lg">
+                    <div class="text-xl font-bold text-pink-400">Time</div>
+                    <div id="timer" class="text-2xl">00:00</div>
+                </div>
+                
+                <div class="bg-gray-800 px-6 py-3 rounded-lg shadow-lg">
+                    <div class="text-xl font-bold text-blue-400">Moves</div>
+                    <div id="moves" class="text-2xl">0</div>
+                </div>
+                
+                <div class="bg-gray-800 px-6 py-3 rounded-lg shadow-lg">
+                    <div class="text-xl font-bold text-green-400">Score</div>
+                    <div id="score" class="text-2xl">0</div>
+                </div>
+            </div>
+            
+            <button id="restart-button" class="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-bold py-2 px-6 rounded-full shadow-lg transition-all duration-300 transform hover:scale-105">
+                <i class="fas fa-sync-alt mr-2"></i> Restart Game
+            </button>
+        </header>
+        
+        <main>
+            <div id="game-board" class="grid grid-cols-4 gap-4 md:grid-cols-6 md:gap-6 max-w-4xl mx-auto">
+                <!-- Cards will be inserted here by JavaScript -->
+            </div>
+            
+            <div id="game-message" class="fixed inset-0 flex items-center justify-center bg-black bg-opacity-70 z-50 hidden">
+                <div class="bg-gray-800 p-8 rounded-xl shadow-2xl text-center max-w-md mx-4 transform transition-all duration-300">
+                    <h2 id="message-title" class="text-3xl font-bold mb-4 text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-pink-500 to-red-500">Congratulations!</h2>
+                    <p id="message-text" class="text-xl mb-6">You've matched all the cards!</p>
+                    <div class="mb-6">
+                        <div class="text-lg mb-2">
+                            <span class="text-blue-400 font-bold">Time:</span> 
+                            <span id="result-time">00:00</span>
+                        </div>
+                        <div class="text-lg mb-2">
+                            <span class="text-pink-400 font-bold">Moves:</span> 
+                            <span id="result-moves">0</span>
+                        </div>
+                        <div class="text-lg">
+                            <span class="text-green-400 font-bold">Score:</span> 
+                            <span id="result-score">0</span>
+                        </div>
+                    </div>
+                    <button id="play-again" class="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-bold py-2 px-6 rounded-full shadow-lg transition-all duration-300 transform hover:scale-105">
+                        <i class="fas fa-play mr-2"></i> Play Again
+                    </button>
+                </div>
+            </div>
+        </main>
+    </div>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const gameBoard = document.getElementById('game-board');
+            const movesDisplay = document.getElementById('moves');
+            const scoreDisplay = document.getElementById('score');
+            const timerDisplay = document.getElementById('timer');
+            const restartButton = document.getElementById('restart-button');
+            const gameMessage = document.getElementById('game-message');
+            const playAgainButton = document.getElementById('play-again');
+            const resultTime = document.getElementById('result-time');
+            const resultMoves = document.getElementById('result-moves');
+            const resultScore = document.getElementById('result-score');
+            
+            // Game state
+            let cards = [];
+            let flippedCards = [];
+            let matchedPairs = 0;
+            let moves = 0;
+            let score = 0;
+            let gameStarted = false;
+            let timerInterval;
+            let seconds = 0;
+            
+            // Card icons and colors
+            const iconOptions = [
+                { icon: 'fa-heart', color: 'bg-red-500' },
+                { icon: 'fa-star', color: 'bg-yellow-500' },
+                { icon: 'fa-moon', color: 'bg-blue-500' },
+                { icon: 'fa-bolt', color: 'bg-yellow-400' },
+                { icon: 'fa-fire', color: 'bg-orange-500' },
+                { icon: 'fa-music', color: 'bg-purple-500' },
+                { icon: 'fa-bell', color: 'bg-green-500' },
+                { icon: 'fa-diamond', color: 'bg-pink-500' },
+                { icon: 'fa-bomb', color: 'bg-gray-600' },
+                { icon: 'fa-apple-whole', color: 'bg-red-600' },
+                { icon: 'fa-ghost', color: 'bg-indigo-500' },
+                { icon: 'fa-rocket', color: 'bg-blue-600' },
+                { icon: 'fa-sun', color: 'bg-yellow-500' },
+                { icon: 'fa-crown', color: 'bg-yellow-600' },
+                { icon: 'fa-gift', color: 'bg-pink-600' },
+                { icon: 'fa-bug', color: 'bg-green-600' },
+                { icon: 'fa-gamepad', color: 'bg-purple-600' },
+                { icon: 'fa-car', color: 'bg-blue-700' }
+            ];
+            
+            // Initialize the game
+            function initGame() {
+                // Reset game state
+                flippedCards = [];
+                matchedPairs = 0;
+                moves = 0;
+                score = 0;
+                seconds = 0;
+                gameStarted = false;
+                
+                updateDisplay();
+                clearInterval(timerInterval);
+                timerDisplay.textContent = '00:00';
+                
+                // Create pairs of cards
+                const numberOfPairs = 12; // 24 cards total
+                
+                // Shuffle and pick icons
+                const shuffledIcons = [...iconOptions].sort(() => Math.random() - 0.5).slice(0, numberOfPairs);
+                
+                // Create pairs
+                cards = [];
+                shuffledIcons.forEach(item => {
+                    // Create two cards with the same icon (a pair)
+                    cards.push({ ...item, id: Math.random() });
+                    cards.push({ ...item, id: Math.random() });
+                });
+                
+                // Shuffle the cards
+                cards = cards.sort(() => Math.random() - 0.5);
+                
+                // Render cards
+                renderCards();
+            }
+            
+            function renderCards() {
+                gameBoard.innerHTML = '';
+                
+                cards.forEach(card => {
+                    const cardElement = document.createElement('div');
+                    cardElement.className = 'memory-card relative h-20 md:h-24 cursor-pointer';
+                    cardElement.dataset.id = card.id;
+                    
+                    const frontFace = document.createElement('div');
+                    frontFace.className = `card-front ${card.color} shadow-lg`;
+                    frontFace.innerHTML = `<i class="fas ${card.icon} text-white text-2xl md:text-3xl"></i>`;
+                    
+                    const backFace = document.createElement('div');
+                    backFace.className = 'card-back bg-gradient-to-br from-gray-700 to-gray-900 shadow-lg';
+                    backFace.innerHTML = `<i class="fas fa-question text-white text-2xl md:text-3xl opacity-50"></i>`;
+                    
+                    cardElement.appendChild(frontFace);
+                    cardElement.appendChild(backFace);
+                    
+                    cardElement.addEventListener('click', () => flipCard(cardElement, card));
+                    
+                    gameBoard.appendChild(cardElement);
+                });
+            }
+            
+            function flipCard(cardElement, card) {
+                // Cannot flip already matched cards or more than 2 cards at once
+                if (
+                    flippedCards.length >= 2 || 
+                    cardElement.classList.contains('flipped') ||
+                    cardElement.classList.contains('matched')
+                ) {
+                    return;
+                }
+                
+                // Start the timer on first card flip
+                if (!gameStarted) {
+                    startTimer();
+                    gameStarted = true;
+                }
+                
+                // Flip the card
+                cardElement.classList.add('flipped');
+                flippedCards.push({ element: cardElement, card: card });
+                
+                // Check for matches if we have 2 flipped cards
+                if (flippedCards.length === 2) {
+                    moves++;
+                    updateDisplay();
+                    checkForMatch();
+                }
+            }
+            
+            function checkForMatch() {
+                const [card1, card2] = flippedCards;
+                
+                // Check if the icons match
+                if (card1.card.icon === card2.card.icon) {
+                    // It's a match!
+                    setTimeout(() => {
+                        card1.element.classList.add('matched');
+                        card2.element.classList.add('matched');
+                        
+                        // Update score and check for game completion
+                        matchedPairs++;
+                        score += 10 + Math.max(0, 20 - Math.floor(seconds / 5)); // Time bonus
+                        updateDisplay();
+                        
+                        flippedCards = [];
+                        
+                        if (matchedPairs === cards.length / 2) {
+                            endGame();
+                        }
+                    }, 500);
+                } else {
+                    // Not a match, flip back
+                    setTimeout(() => {
+                        card1.element.classList.remove('flipped');
+                        card2.element.classList.remove('flipped');
+                        flippedCards = [];
+                    }, 1000);
+                }
+            }
+            
+            function startTimer() {
+                timerInterval = setInterval(() => {
+                    seconds++;
+                    const minutes = Math.floor(seconds / 60);
+                    const remainingSeconds = seconds % 60;
+                    timerDisplay.textContent = `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
+                }, 1000);
+            }
+            
+            function updateDisplay() {
+                movesDisplay.textContent = moves;
+                scoreDisplay.textContent = score;
+            }
+            
+            function endGame() {
+                clearInterval(timerInterval);
+                
+                // Update final results
+                resultTime.textContent = timerDisplay.textContent;
+                resultMoves.textContent = moves;
+                resultScore.textContent = score;
+                
+                // Show the message after a short delay
+                setTimeout(() => {
+                    gameMessage.classList.remove('hidden');
+                    document.getElementById('message-title').classList.add('celebrate');
+                }, 1000);
+            }
+            
+            // Event Listeners
+            restartButton.addEventListener('click', () => {
+                initGame();
+            });
+            
+            playAgainButton.addEventListener('click', () => {
+                gameMessage.classList.add('hidden');
+                initGame();
+            });
+            
+            // Initialize the game
+            initGame();
+        });
+    </script>
+</body>
+</html>
